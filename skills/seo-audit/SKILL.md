@@ -14,6 +14,12 @@ metadata:
 
 ## Process
 
+0. **Check data access (before anything else).** Run `claude-seo run google_auth.py --check --json`
+   and `claude-seo run backlinks_auth.py --check --json` to establish which data sources are
+   actually available *before* crawling begins. Record the outcome for every source in the
+   `data_sources` block of `audit-data.json` (see the Structured Audit Data Envelope below).
+   An audit must never discover partway through that it has been estimating what it could
+   have measured.
 1. **Render homepage**: use `claude-seo run render_page.py <url> --mode auto --json` to capture raw HTML, rendered HTML, extracted text, SPA status, and accessibility data when needed
 2. **Detect business type**: analyze homepage signals per seo orchestrator
 3. **Crawl site**: follow internal links up to 500 pages, respect robots.txt
@@ -197,9 +203,22 @@ block at its defaults if a source was in fact consulted.
 
 If DataForSEO MCP tools are available, spawn the `seo-dataforseo` agent alongside existing subagents to enrich the audit with live data: real SERP positions, backlink profiles with spam scores, on-page analysis (Lighthouse), business listings, and AI visibility checks (ChatGPT scraper, LLM mentions).
 
-## Google API Integration (Optional)
+## Google API Integration
 
-If Google API credentials are configured (`claude-seo run google_auth.py --check`), spawn the `seo-google` agent to enrich the audit with real Google field data: CrUX Core Web Vitals (replaces lab-only estimates), GSC URL indexation status, search performance (clicks, impressions, CTR), and GA4 organic traffic trends. The Performance (CWV) category score benefits most from field data.
+The credential check itself runs in **Step 0 of the Process**, before crawling -- not
+here, and not partway through the audit. This section describes what to do with the
+result.
+
+If Google API credentials are configured, spawn the `seo-google` agent to enrich the
+audit with real Google field data: CrUX Core Web Vitals (replaces lab-only estimates),
+GSC URL indexation status, search performance (clicks, impressions, CTR), and GA4
+organic traffic trends. The Performance (CWV) category score benefits most from field
+data.
+
+If they are not configured, the affected sources are recorded as
+`available: false, method: not-assessed` in `data_sources`, and every finding that
+would have depended on them is written with `source: not-assessed` and reported as
+"Not Assessed" -- never estimated, never scored.
 
 ## Error Handling
 

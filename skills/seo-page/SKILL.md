@@ -19,13 +19,21 @@ metadata:
 ## What to Analyze
 
 ### On-Page SEO
-- Title tag: 50-60 characters, includes primary keyword, unique
-- Meta description: 150-160 characters, compelling, includes keyword
+- Title tag: aim for ~50-60 characters, includes primary keyword, unique
+- Meta description: aim for ~150-160 characters, compelling, includes keyword
 - H1: exactly one, matches page intent, includes keyword
 - H2-H6: logical hierarchy (no skipped levels), descriptive
 - URL: short, descriptive, hyphenated, no parameters
 - Internal links: sufficient, relevant anchor text, no orphan pages
 - External links: to authoritative sources, reasonable count
+
+> **Metadata length is a truncation heuristic, not a compliance cliff.** Aim for
+> ~50-60 characters (titles) and ~150-160 characters (descriptions) to avoid SERP
+> truncation. A 61-character title is not a violation and must not be reported as
+> one. **Flag only clear outliers** -- roughly >80 or <20 characters -- where
+> truncation or thinness is actually likely. Google also rewrites titles and
+> descriptions routinely, so treat length as guidance about presentation, not as a
+> ranking factor. Where flagged, this is `severity: Low`.
 
 ### Content Quality
 - Word count vs page type minimums (see quality-gates.md)

@@ -52,14 +52,22 @@ Fetch and parse any product page for on-page SEO quality.
 #### Title Tag
 - [ ] Contains primary product keyword
 - [ ] Includes brand name
-- [ ] Under 60 characters (no truncation in SERPs)
+- [ ] Around 50-60 characters (truncation heuristic, see note below)
 - [ ] Format: `[Product Name] - [Key Feature] | [Brand]`
 
 #### Meta Description
 - [ ] Contains product keyword + benefit
 - [ ] Includes price or "from $XX" (triggers rich snippet interest)
 - [ ] Call-to-action present (Shop now, Buy, Free shipping)
-- [ ] Under 155 characters
+- [ ] Around 150-160 characters (truncation heuristic, see note below)
+
+> **Metadata length is a truncation heuristic, not a compliance cliff.** Aim for
+> ~50-60 characters (titles) and ~150-160 characters (descriptions) to avoid SERP
+> truncation. A 61-character title is not a violation and must not be reported as
+> one. **Flag only clear outliers** -- roughly >80 or <20 characters -- where
+> truncation or thinness is actually likely. Google also rewrites titles and
+> descriptions routinely, so treat length as guidance about presentation, not as a
+> ranking factor. Where flagged, this is `severity: Low`.
 
 #### Heading Structure
 - [ ] Single H1 matching primary product name
