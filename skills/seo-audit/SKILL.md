@@ -14,12 +14,8 @@ metadata:
 
 ## Process
 
-0. **Check data access (before anything else).** Run `claude-seo run google_auth.py --check --json`
-   and `claude-seo run backlinks_auth.py --check --json` to establish which data sources are
-   actually available *before* crawling begins. Record the outcome for every source in the
-   `data_sources` block of `audit-data.json` (see the Structured Audit Data Envelope below).
-   An audit must never discover partway through that it has been estimating what it could
-   have measured.
+0. **Check data access.** See [Phase 0](#phase-0-access--data-availability) below --
+   this runs before any crawling and is not optional.
 1. **Render homepage**: use `claude-seo run render_page.py <url> --mode auto --json` to capture raw HTML, rendered HTML, extracted text, SPA status, and accessibility data when needed
 2. **Detect business type**: analyze homepage signals per seo orchestrator
 3. **Crawl site**: follow internal links up to 500 pages, respect robots.txt
@@ -42,6 +38,50 @@ metadata:
 5. **Score** -- aggregate into SEO Health Score (0-100)
 6. **Persist audit artifacts** -- write all outputs under `{domain}-audit/`
 7. **Report** -- generate prioritized action plan and optional PDF/HTML report
+
+## Phase 0: Access & Data Availability
+
+Run **before** Step 1, always:
+
+```bash
+claude-seo run google_auth.py --check --json
+claude-seo run backlinks_auth.py --check --json
+```
+
+The point is to stop the audit silently falling back to lab-only estimates partway
+through. Decide what is available up front, tell the user what that costs, and let
+them choose.
+
+**For each unavailable source** (GSC, GA4, CrUX/PageSpeed, backlinks), tell the user
+concretely what will be missing from the audit if it proceeds without that source --
+not "GSC is unavailable" but "without Search Console, indexation status and
+query-level data will be Not Assessed, so cannibalization findings can't be verified
+against real query overlap." Then offer three options:
+
+**(a) Connect it now.** Walk the user through the documented OAuth / API-key setup
+(`skills/seo-google/references/auth-setup.md` for Google; `/seo backlinks setup` for
+Moz and Bing). Re-run the check afterwards. Record `method: api`.
+
+**(b) Use Chrome-assisted checking.** Only offer this when a browser with Chrome
+tools is actually available in this session. Follow
+`references/chrome-assisted-data.md` -- it specifies exactly which screen to read for
+each source, and it is **read-only**: never change a setting or submit a form on the
+user's behalf. Findings from this path carry `source: chrome-assisted` and
+`confidence: Medium` at most, and name the screen that was read. Record
+`method: chrome-assisted`.
+
+**(c) Proceed without it.** The source is marked `not-assessed` throughout the
+report. Every finding that would have depended on it is reported as "Not Assessed" --
+**never estimated, never scored, never given a placeholder number.** Record
+`method: not-assessed`.
+
+**Record the outcome for every source** in `audit-data.json`'s `data_sources` block
+before continuing to Step 1. The report generator renders the "Data Sources &
+Methodology" page from this block, so a source left at its default will be reported
+as unused.
+
+Do not ask the user to make this choice again later in the audit, and do not
+re-prompt per finding.
 
 ## Crawl Configuration
 

@@ -132,13 +132,15 @@ def test_audit_process_checks_credentials_before_rendering_or_crawling() -> None
     process = text.split("## Process", 1)[1]
     process = re.split(r"^## ", process, maxsplit=1, flags=re.M)[0]
 
-    check_pos = process.index("google_auth.py --check")
-    backlinks_pos = process.index("backlinks_auth.py --check")
+    check_pos = process.index("Check data access")
     render_pos = process.index("Render homepage")
     crawl_pos = process.index("Crawl site")
 
     assert check_pos < render_pos < crawl_pos
-    assert backlinks_pos < render_pos
+
+    # The check itself is a real command invocation, wherever the step body lives.
+    assert "google_auth.py --check" in text
+    assert "backlinks_auth.py --check" in text
 
 
 def test_google_api_section_no_longer_owns_the_credential_check() -> None:
