@@ -99,3 +99,23 @@ If `output_dir` is provided by the audit orchestrator, write:
 
 - `output_dir/findings/performance.md`: evidence, scores, bottlenecks, and recommendations
 - Structured JSON-compatible findings for `audit-data.json` under the Performance category
+
+Every finding written into `audit-data.json` must carry `confidence`, `business_impact`,
+and `source` alongside `severity`:
+
+```json
+{
+  "title": "Finding title",
+  "severity": "Critical|High|Medium|Low|Info",
+  "confidence": "High|Medium|Low",
+  "business_impact": "Critical|High|Medium|Low|Info|N/A",
+  "description": "Evidence-backed detail",
+  "recommendation": "Specific fix",
+  "source": "api|chrome-assisted|lab-estimate|not-assessed"
+}
+```
+
+`severity` rates SEO impact only; `business_impact` rates the consequence of never fixing
+it, and the two are allowed to diverge. `confidence` reflects the data actually available,
+not how bad the finding is. `source` records where the evidence came from -- and a finding
+with `source: not-assessed` must report "Not Assessed" rather than any numeric score.

@@ -155,3 +155,101 @@ def test_full_audit_html_includes_summary_categories_and_roadmap(tmp_path: Path)
     assert "Action Plan" in html
     assert "Phase 1: Indexing Fixes" in html
     assert "Content Quality" in html
+
+
+def test_full_audit_renders_confidence_and_business_impact_separately(tmp_path: Path) -> None:
+    """Severity, business_impact, and confidence are distinct visual elements."""
+    data = {
+        "summary": {"health_score": 71},
+        "categories": [
+            {
+                "name": "Technical SEO",
+                "findings": [
+                    {
+                        "title": "Missing security headers",
+                        "severity": "Low",
+                        "confidence": "High",
+                        "business_impact": "Critical",
+                        "description": "No HSTS or X-Content-Type-Options header.",
+                        "recommendation": "Add HSTS and X-Content-Type-Options.",
+                        "source": "api",
+                    },
+                    {
+                        "title": "Canonical mismatch",
+                        "severity": "Critical",
+                        "confidence": "High",
+                        "business_impact": "Critical",
+                        "description": "Canonical points at staging.",
+                        "source": "api",
+                    },
+                ],
+            }
+        ],
+    }
+
+    result = google_report.generate_report(
+        "full", data, "example.com", tmp_path, output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+
+    # Severity drives the colour class on the heading badge.
+    assert 'class="sev-low">Low<' in html
+    assert 'class="sev-critical">Critical<' in html
+    # business_impact gets its own badge when it diverges from severity...
+    assert "Business impact: Critical" in html
+    # ...and exactly once: the second finding's impact matches its severity.
+    assert html.count("Business impact:") == 1
+    # confidence is rendered separately from both.
+    assert "Confidence: High" in html
+    assert "Source: api" in html
+
+
+def test_full_audit_methodology_lists_only_available_data_sources(tmp_path: Path) -> None:
+    """Only sources marked available:true appear as used, with their method label."""
+    data = {
+        "summary": {"health_score": 64},
+        "data_sources": {
+            "google_search_console": {"available": True, "method": "chrome-assisted"},
+            "ga4": {"available": True, "method": "api"},
+            "crux": {"available": False, "method": "not-assessed"},
+            "pagespeed_insights": {"available": False, "method": "not-assessed"},
+            "backlinks": {"available": False, "method": "not-assessed"},
+        },
+    }
+
+    result = google_report.generate_report(
+        "full", data, "example.com", tmp_path, output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+
+    used = html.split("Not Assessed", 1)[0]
+    assert "Google Search Console" in used
+    assert "Chrome-assisted (UI read)" in used
+    assert "Google Analytics 4" in used
+    assert "API" in used
+
+    # Unavailable sources are never presented as consulted.
+    assert "Chrome UX Report" not in used
+    assert "PageSpeed Insights API" not in used
+
+    not_assessed = html.split("Not Assessed", 1)[1]
+    assert "Chrome UX Report (CrUX)" in not_assessed
+    assert "PageSpeed Insights API" in not_assessed
+    assert "Backlink providers" in not_assessed
+
+
+def test_full_audit_without_data_sources_block_keeps_static_methodology(tmp_path: Path) -> None:
+    """Reports with no data_sources block fall back to the legacy methodology page."""
+    result = google_report.generate_report(
+        "full", {"summary": {"health_score": 80}}, "example.com", tmp_path,
+        output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+    assert "Data Sources &amp; Methodology" in html
+    assert "Chrome UX Report (CrUX)" in html

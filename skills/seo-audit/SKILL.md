@@ -78,8 +78,11 @@ Write `{domain}-audit/audit-data.json` with this shape so `claude-seo run google
         {
           "title": "Finding title",
           "severity": "Critical|High|Medium|Low|Info",
+          "confidence": "High|Medium|Low",
+          "business_impact": "Critical|High|Medium|Low|Info|N/A",
           "description": "Evidence-backed detail",
-          "recommendation": "Specific fix"
+          "recommendation": "Specific fix",
+          "source": "api|chrome-assisted|lab-estimate|not-assessed"
         }
       ]
     }
@@ -95,9 +98,35 @@ Write `{domain}-audit/audit-data.json` with this shape so `claude-seo run google
   "artifacts": {
     "findings_dir": "findings/",
     "screenshots_dir": "screenshots/"
+  },
+  "data_sources": {
+    "google_search_console": {"available": false, "method": "not-assessed"},
+    "ga4": {"available": false, "method": "not-assessed"},
+    "crux": {"available": false, "method": "not-assessed"},
+    "pagespeed_insights": {"available": false, "method": "not-assessed"},
+    "backlinks": {"available": false, "method": "not-assessed"}
   }
 }
 ```
+
+### Finding Fields
+
+- **`severity`** -- how much this hurts *SEO* specifically. Drives report ordering and colour.
+- **`confidence`** -- how sure the specialist is, given the data actually available. This is not a second measure of severity: a `Critical` finding backed only by a lab estimate is `severity: Critical, confidence: Low`.
+- **`business_impact`** -- what happens if this is never fixed, independent of SEO severity. This is what lets "zero security headers" be `severity: Low` (it barely touches rankings) while `business_impact: Critical` (it is still a real security gap worth fixing). Severity and business impact are allowed to diverge; **do not collapse them back into one number**. Use `N/A` when the finding is purely an SEO concern with no separate business consequence.
+- **`source`** -- where this finding's evidence came from:
+  - `api` -- a structured pull from a credentialed API (GSC, GA4, CrUX, PageSpeed, Moz, Bing).
+  - `chrome-assisted` -- read from a UI in the browser rather than from an API. Never `confidence: High`.
+  - `lab-estimate` -- synthetic/lab measurement standing in for field data.
+  - `not-assessed` -- the data source was unavailable and the check was not performed. **A `not-assessed` finding must never carry a numeric score.** Report "Not Assessed", never an estimate.
+
+### Data Sources Block
+
+`data_sources` records what was actually available for this audit. `method` is one of
+`api`, `chrome-assisted`, or `not-assessed`. Step 0 of the Process populates this block
+before crawling begins, and the report generator renders the "Data Sources & Methodology"
+page from it -- only sources with `available: true` are listed as used. Never leave this
+block at its defaults if a source was in fact consulted.
 
 ## Scoring Weights
 
