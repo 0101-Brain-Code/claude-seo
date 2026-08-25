@@ -39,8 +39,9 @@ As of 2025-2026, AI companies actively crawl the web to train models and power A
 
 | Crawler | Company | robots.txt token | Purpose |
 |---------|---------|-----------------|---------|
-| GPTBot | OpenAI | `GPTBot` | Model training |
-| ChatGPT-User | OpenAI | `ChatGPT-User` | Real-time browsing |
+| GPTBot | OpenAI | `GPTBot` | Model training (NOT ChatGPT Search) |
+| OAI-SearchBot | OpenAI | `OAI-SearchBot` | ChatGPT Search citability |
+| ChatGPT-User | OpenAI | `ChatGPT-User` | Real-time browsing (user-triggered) |
 | ClaudeBot | Anthropic | `ClaudeBot` | Model training |
 | PerplexityBot | Perplexity | `PerplexityBot` | Search index + training |
 | Bytespider | ByteDance | `Bytespider` | Model training |
@@ -49,7 +50,10 @@ As of 2025-2026, AI companies actively crawl the web to train models and power A
 
 **Key distinctions:**
 - Blocking `Google-Extended` prevents Gemini training use but does NOT affect Google Search indexing or AI Overviews (those use `Googlebot`)
-- Blocking `GPTBot` prevents OpenAI training but does NOT prevent ChatGPT from citing your content via browsing (`ChatGPT-User`)
+- Blocking `GPTBot` prevents OpenAI training but does NOT affect ChatGPT Search
+  citability, which is governed by `OAI-SearchBot`, nor user-triggered browsing
+  (`ChatGPT-User`). Check `OAI-SearchBot` for any citability claim; `GPTBot`
+  status is evidence about training use only
 - ~3-5% of websites now use AI-specific robots.txt rules
 
 **Example, selective AI crawler blocking:**
@@ -183,6 +187,42 @@ without scoring, use `claude-seo run render_page.py <url> --a11y-tree --json`.
 Surface findings as **opportunities**, not failures; don't gate audits on a
 sub-100 Agent-UX score. WebMCP origin-trial/sign-up status needs verification,
 and absence of WebMCP support is still an opportunity, not a defect.
+
+## Severity Assignment (binding)
+
+This table is **binding, not illustrative**. When a finding has an entry here, use
+the listed `severity` and `business_impact` verbatim -- do not free-assign severity
+for these findings, and do not raise SEO severity because business impact is high.
+
+`severity` measures SEO impact only. `business_impact` measures the consequence of
+never fixing it. They are deliberately allowed to diverge: missing security headers
+barely touch rankings but are still a real security gap worth fixing.
+
+| Finding | SEO Severity | Business Impact |
+|---|---|---|
+| Missing security headers (HSTS, X-Content-Type-Options, CSP, X-Frame-Options, Referrer-Policy) | Low | Critical |
+| Missing Cache-Control / page-cache bypass | High (only if TTFB or LCP is measurably degraded; otherwise Low) | Medium |
+| No canonical tags / duplicate or conflicting canonicals | Critical | N/A |
+| HTTPS not enforced, invalid certificate, or mixed content | High | Critical |
+| Back-button hijacking (`history.pushState`/`replaceState`) | Critical | High |
+| Canonical mismatch between raw HTML and JS-rendered output | Critical | N/A |
+| `noindex` served on a page intended to rank | Critical | High |
+| Redirect chains (more than 1 hop) | Medium | Low |
+| URL length over 100 characters | Low | N/A |
+| Missing or misconfigured viewport meta tag | High | Medium |
+| Mobile/desktop content parity loss | High | High |
+| Intrusive interstitials / excessive ad density | Medium | Medium |
+| No IndexNow support | Low | Low |
+| Sub-100 Agent-UX score | Info | Low |
+
+For a finding **not** listed above, assign severity on the evidence and record
+`confidence` honestly. Every finding written to `audit-data.json` carries
+`severity`, `confidence`, `business_impact`, and `source` -- see the
+`seo-audit` skill's Finding Fields section for the full contract.
+
+**Never score what you did not measure.** A finding whose data source was
+unavailable is written with `source: not-assessed` and reported as
+"Not Assessed" -- never as an estimated number.
 
 ## Output
 

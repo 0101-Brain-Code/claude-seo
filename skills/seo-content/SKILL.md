@@ -103,10 +103,29 @@ Compare against page type minimums:
 - Charts/graphs for statistics
 
 ### Internal Linking
-- 3-5 relevant internal links per 1000 words
+- 3-5 relevant internal links per 1000 words (outbound, from the page)
 - Descriptive anchor text
 - Links to related content
 - No orphan pages
+
+#### Inbound-link sufficiency (heuristic, not a gate)
+
+**There is no universal minimum-link threshold.** Do not invent one, and do not
+report a page as under-linked for failing to hit a specific count -- a page with
+four inbound links is not thereby deficient.
+
+Judge sufficiency by whether the page is reachable through a deliberate
+navigation and internal-linking hierarchy, not by hitting a number:
+
+- **0-1 inbound internal links to a commercial page** is the clearest orphan
+  signal and worth flagging (`severity: Medium`). Say which pages link to it.
+- **Reachable only from the sitemap, a footer dump, or a paginated archive**
+  is a weaker but real signal -- flag as `severity: Low`, framed as hierarchy,
+  not count.
+- **Anything above that** is a judgement call about whether the site's structure
+  actually routes users and crawlers to the page. If you flag it, cite the
+  hierarchy gap, and record `confidence: Low` when you are inferring from a
+  partial crawl.
 
 ### External Linking
 - Cite authoritative sources
@@ -167,6 +186,32 @@ Per Google's AI optimization guide, "AEO" and "GEO" are rebranded labels for SEO
 - Publication date visible
 - Last updated date if content has been revised
 - Flag content older than 12 months without update for fast-changing topics
+
+## Cannibalization: Merge Recommendation Gate
+
+**Never recommend a URL merge or 301 on topic or URL similarity alone.** Two pages
+covering related subjects is not evidence that they compete; a merge that is wrong
+destroys a working page and its links.
+
+Before recommending any merge/301, check `data_sources.google_search_console.available`
+in `audit-data.json`:
+
+**GSC available** -- verify the candidates actually split the same query traffic.
+Pull query-level data per page (`claude-seo run gsc_query.py <url> --json`) and
+confirm the pair shares meaningfully overlapping queries where both rank. Only then
+recommend the merge, with `confidence: High` and the overlapping queries cited as
+evidence in the finding's `description`.
+
+**GSC not available** -- still surface the candidate pair, because it is useful to a
+human who can check. But:
+
+- label the recommendation `confidence: Low`,
+- state explicitly in the `description` that query overlap could not be verified
+  because Search Console data was unavailable, and
+- phrase it as a candidate to investigate, never as a merge instruction.
+
+If the pages share a topic but serve different intents (e.g. a comparison page and a
+pricing page), that is not cannibalization -- do not report it as one.
 
 ## Output
 

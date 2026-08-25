@@ -14,6 +14,8 @@ metadata:
 
 ## Process
 
+0. **Check data access.** See [Phase 0](#phase-0-access--data-availability) below --
+   this runs before any crawling and is not optional.
 1. **Render homepage**: use `claude-seo run render_page.py <url> --mode auto --json` to capture raw HTML, rendered HTML, extracted text, SPA status, and accessibility data when needed
 2. **Detect business type**: analyze homepage signals per seo orchestrator
 3. **Crawl site**: follow internal links up to 500 pages, respect robots.txt
@@ -36,6 +38,52 @@ metadata:
 5. **Score** -- aggregate into SEO Health Score (0-100)
 6. **Persist audit artifacts** -- write all outputs under `{domain}-audit/`
 7. **Report** -- generate prioritized action plan and optional PDF/HTML report
+
+## Phase 0: Access & Data Availability
+
+Run **before** Step 1, always:
+
+```bash
+claude-seo run google_auth.py --check --json
+claude-seo run backlinks_auth.py --check --json
+```
+
+The point is to stop the audit silently falling back to lab-only estimates partway
+through. Decide what is available up front, tell the user what that costs, and let
+them choose.
+
+**For each unavailable source** (GSC, GA4, CrUX/PageSpeed, backlinks), tell the user
+concretely what will be missing from the audit if it proceeds without that source --
+not "GSC is unavailable" but "without Search Console, indexation status and
+query-level data will be Not Assessed, so cannibalization findings can't be verified
+against real query overlap." Then offer three options:
+
+**(a) Connect it now.** Walk the user through the documented OAuth / API-key setup
+(`skills/seo-google/references/auth-setup.md` for Google; `/seo backlinks setup` for
+Moz and Bing). Re-run the check afterwards. Record `method: api`.
+
+**(b) Use Chrome-assisted checking.** *Requires the `brainandcode-audit` extension*
+(`extensions/brainandcode-audit/`), which installs
+`references/chrome-assisted-data.md`. Only offer this option when that reference is
+present **and** a browser with Chrome tools is actually available in this session --
+otherwise skip straight to (c). The reference specifies exactly which screen to read
+for each source, and the tier is **read-only**: never change a setting or submit a
+form on the user's behalf. Findings from this path carry `source: chrome-assisted`
+and `confidence: Medium` at most, and name the screen that was read. Record
+`method: chrome-assisted`.
+
+**(c) Proceed without it.** The source is marked `not-assessed` throughout the
+report. Every finding that would have depended on it is reported as "Not Assessed" --
+**never estimated, never scored, never given a placeholder number.** Record
+`method: not-assessed`.
+
+**Record the outcome for every source** in `audit-data.json`'s `data_sources` block
+before continuing to Step 1. The report generator renders the "Data Sources &
+Methodology" page from this block, so a source left at its default will be reported
+as unused.
+
+Do not ask the user to make this choice again later in the audit, and do not
+re-prompt per finding.
 
 ## Crawl Configuration
 
@@ -78,8 +126,11 @@ Write `{domain}-audit/audit-data.json` with this shape so `claude-seo run google
         {
           "title": "Finding title",
           "severity": "Critical|High|Medium|Low|Info",
+          "confidence": "High|Medium|Low",
+          "business_impact": "Critical|High|Medium|Low|Info|N/A",
           "description": "Evidence-backed detail",
-          "recommendation": "Specific fix"
+          "recommendation": "Specific fix",
+          "source": "api|chrome-assisted|lab-estimate|not-assessed"
         }
       ]
     }
@@ -95,9 +146,35 @@ Write `{domain}-audit/audit-data.json` with this shape so `claude-seo run google
   "artifacts": {
     "findings_dir": "findings/",
     "screenshots_dir": "screenshots/"
+  },
+  "data_sources": {
+    "google_search_console": {"available": false, "method": "not-assessed"},
+    "ga4": {"available": false, "method": "not-assessed"},
+    "crux": {"available": false, "method": "not-assessed"},
+    "pagespeed_insights": {"available": false, "method": "not-assessed"},
+    "backlinks": {"available": false, "method": "not-assessed"}
   }
 }
 ```
+
+### Finding Fields
+
+- **`severity`** -- how much this hurts *SEO* specifically. Drives report ordering and colour.
+- **`confidence`** -- how sure the specialist is, given the data actually available. This is not a second measure of severity: a `Critical` finding backed only by a lab estimate is `severity: Critical, confidence: Low`.
+- **`business_impact`** -- what happens if this is never fixed, independent of SEO severity. This is what lets "zero security headers" be `severity: Low` (it barely touches rankings) while `business_impact: Critical` (it is still a real security gap worth fixing). Severity and business impact are allowed to diverge; **do not collapse them back into one number**. Use `N/A` when the finding is purely an SEO concern with no separate business consequence.
+- **`source`** -- where this finding's evidence came from:
+  - `api` -- a structured pull from a credentialed API (GSC, GA4, CrUX, PageSpeed, Moz, Bing).
+  - `chrome-assisted` -- read from a UI in the browser rather than from an API. Never `confidence: High`.
+  - `lab-estimate` -- synthetic/lab measurement standing in for field data.
+  - `not-assessed` -- the data source was unavailable and the check was not performed. **A `not-assessed` finding must never carry a numeric score.** Report "Not Assessed", never an estimate.
+
+### Data Sources Block
+
+`data_sources` records what was actually available for this audit. `method` is one of
+`api`, `chrome-assisted`, or `not-assessed`. Step 0 of the Process populates this block
+before crawling begins, and the report generator renders the "Data Sources & Methodology"
+page from it -- only sources with `available: true` are listed as used. Never leave this
+block at its defaults if a source was in fact consulted.
 
 ## Scoring Weights
 
@@ -168,9 +245,22 @@ Write `{domain}-audit/audit-data.json` with this shape so `claude-seo run google
 
 If DataForSEO MCP tools are available, spawn the `seo-dataforseo` agent alongside existing subagents to enrich the audit with live data: real SERP positions, backlink profiles with spam scores, on-page analysis (Lighthouse), business listings, and AI visibility checks (ChatGPT scraper, LLM mentions).
 
-## Google API Integration (Optional)
+## Google API Integration
 
-If Google API credentials are configured (`claude-seo run google_auth.py --check`), spawn the `seo-google` agent to enrich the audit with real Google field data: CrUX Core Web Vitals (replaces lab-only estimates), GSC URL indexation status, search performance (clicks, impressions, CTR), and GA4 organic traffic trends. The Performance (CWV) category score benefits most from field data.
+The credential check itself runs in **Step 0 of the Process**, before crawling -- not
+here, and not partway through the audit. This section describes what to do with the
+result.
+
+If Google API credentials are configured, spawn the `seo-google` agent to enrich the
+audit with real Google field data: CrUX Core Web Vitals (replaces lab-only estimates),
+GSC URL indexation status, search performance (clicks, impressions, CTR), and GA4
+organic traffic trends. The Performance (CWV) category score benefits most from field
+data.
+
+If they are not configured, the affected sources are recorded as
+`available: false, method: not-assessed` in `data_sources`, and every finding that
+would have depended on them is written with `source: not-assessed` and reported as
+"Not Assessed" -- never estimated, never scored.
 
 ## Error Handling
 

@@ -148,6 +148,30 @@ When generating schema for a page:
 }
 ```
 
+## Severity Assignment (binding)
+
+Use these values verbatim for the findings listed. Schema gaps are real fixes, not
+urgent ones -- resist the pull to inflate them. `business_impact` is `N/A` where the
+only consequence is a missed rich result.
+
+| Finding | SEO Severity | Business Impact |
+|---|---|---|
+| Commercial page typed as `Article` instead of `Service`/`Product` | Medium | Low |
+| Missing `BreadcrumbList` | Low | N/A |
+| Missing `@context` or invalid `@type` (markup does not parse) | High | N/A |
+| Deprecated type still in use | Low | N/A |
+| Placeholder text or relative URLs in live markup | Medium | Low |
+| No structured data at all on a page eligible for rich results | Medium | Low |
+| `Product` markup missing merchant-listing requirements (price, availability) | High | Medium |
+
+A schema **type mismatch** (first row) is a mismatch between the page's commercial
+intent and its declared type -- it costs eligibility for the right rich result, not
+indexation. A **missing** `BreadcrumbList` costs a SERP breadcrumb trail and nothing
+more; do not report it as a crawlability or navigation defect.
+
+Findings not listed here are assigned on the evidence, with `confidence` recorded
+honestly. See the `seo-audit` skill's Finding Fields section for the full contract.
+
 ## Output
 
 - `SCHEMA-REPORT.md`: detection and validation results

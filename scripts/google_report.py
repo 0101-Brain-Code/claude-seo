@@ -739,6 +739,36 @@ def _build_css(domain: str) -> str:
     font-weight: bold;
   }}
 
+  /* ─── Finding severity vs. business impact ─── */
+  .sev-critical {{ color: #9b1c1c; font-weight: bold; }}
+  .sev-high    {{ color: #c53030; font-weight: bold; }}
+  .sev-medium  {{ color: #d4740e; font-weight: bold; }}
+  .sev-low     {{ color: #8a6d3b; font-weight: bold; }}
+  .sev-info    {{ color: #4a5568; font-weight: bold; }}
+  .sev-na      {{ color: #94a3b8; font-weight: bold; }}
+
+  .finding-badges {{
+    margin: 1mm 0 2mm 0;
+    font-size: 8.5pt;
+  }}
+
+  .impact-badge {{
+    display: inline-block;
+    border: 0.4mm solid currentColor;
+    border-radius: 1mm;
+    padding: 0.3mm 1.5mm;
+    margin-right: 2mm;
+  }}
+
+  .meta-badge {{
+    display: inline-block;
+    color: #6b7280;
+    background: #f3f4f6;
+    border-radius: 1mm;
+    padding: 0.3mm 1.5mm;
+    margin-right: 2mm;
+  }}
+
   /* ─── Charts ─── */
   .chart-container {{
     text-align: center;
@@ -1091,6 +1121,56 @@ def _finding_description(item):
     return ""
 
 
+_SEVERITY_CSS = {
+    "critical": "sev-critical",
+    "high": "sev-high",
+    "medium": "sev-medium",
+    "low": "sev-low",
+    "info": "sev-info",
+    "n/a": "sev-na",
+}
+
+
+def _severity_css_class(severity):
+    """Return a severity-specific CSS class (severity drives colour, not rating text)."""
+    return _SEVERITY_CSS.get(str(severity).strip().lower(), "status-warn")
+
+
+def _finding_field(item, key):
+    """Return a stripped string field from a finding dict, or '' when absent."""
+    if isinstance(item, dict) and item.get(key) is not None:
+        return str(item[key]).strip()
+    return ""
+
+
+def _build_finding_badges(finding):
+    """Render confidence and business_impact as elements distinct from severity.
+
+    business_impact only gets a badge when it differs from severity, so the common
+    case (they agree) stays visually quiet and divergence stands out.
+    """
+    severity = _finding_severity(finding)
+    impact = _finding_field(finding, "business_impact")
+    confidence = _finding_field(finding, "confidence")
+    source = _finding_field(finding, "source")
+
+    badges = []
+    if impact and impact.lower() != str(severity).strip().lower():
+        badges.append(
+            f'<span class="impact-badge {_severity_css_class(impact)}">'
+            f'Business impact: {escape(impact)}</span>'
+        )
+    if confidence:
+        badges.append(
+            f'<span class="meta-badge">Confidence: {escape(confidence)}</span>'
+        )
+    if source:
+        badges.append(f'<span class="meta-badge">Source: {escape(source)}</span>')
+    if not badges:
+        return ""
+    return '    <p class="finding-badges">' + " ".join(badges) + '</p>'
+
+
 def _build_full_audit_categories(data, section_num=2):
     """Build category sections for audit-data.json style reports."""
     categories = _coerce_items(data.get("categories"))
@@ -1137,9 +1217,12 @@ def _build_full_audit_categories(data, section_num=2):
                 recommendation = ""
                 if isinstance(finding, dict) and finding.get("recommendation"):
                     recommendation = escape(str(finding["recommendation"]))
-                severity_class = _rating_css_class(severity)
+                severity_class = _severity_css_class(_finding_severity(finding))
                 lines.append('  <div class="action-item medium">')
                 lines.append(f'    <h4>{title} <span class="{severity_class}">{severity}</span></h4>')
+                badges = _build_finding_badges(finding)
+                if badges:
+                    lines.append(badges)
                 if desc:
                     lines.append(f'    <p>{desc}</p>')
                 if recommendation:
@@ -2006,6 +2089,137 @@ def _build_recommendations(data, section_num=5):
     return "\n".join(lines)
 
 
+_DATA_SOURCE_LABELS = {
+    "google_search_console": (
+        "Google Search Console",
+        "Search Analytics (clicks, impressions, CTR, position)",
+        "2-3 day lag",
+    ),
+    "ga4": (
+        "Google Analytics 4",
+        "Organic sessions and landing-page engagement",
+        "Daily",
+    ),
+    "crux": (
+        "Chrome UX Report (CrUX)",
+        "28-day rolling field data from real Chrome users",
+        "Daily ~04:00 UTC",
+    ),
+    "pagespeed_insights": (
+        "PageSpeed Insights API",
+        "Lighthouse lab audit (mobile emulation, Moto G Power, slow 4G)",
+        "Real-time",
+    ),
+    "backlinks": (
+        "Backlink providers (Moz / Bing / Common Crawl)",
+        "Referring domains, anchor text, and authority metrics",
+        "Provider-dependent",
+    ),
+    "inspection": (
+        "URL Inspection API",
+        "Per-URL index status, coverage state, crawl info",
+        "Real-time (2,000/day)",
+    ),
+}
+
+_METHOD_LABELS = {
+    "api": "API",
+    "chrome-assisted": "Chrome-assisted (UI read)",
+    "not-assessed": "Not assessed",
+    "lab-estimate": "Lab estimate",
+}
+
+
+def _humanize_source_key(key):
+    return str(key).replace("_", " ").title()
+
+
+def _build_data_sources_footer(domain, timestamp, data_sources, gsc_warning=""):
+    """Build a Data Sources & Methodology page from the audit's `data_sources` block.
+
+    Only sources recorded as `available: true` are listed as used; everything else is
+    named explicitly as not assessed, so the report never implies it consulted a
+    source it had no access to.
+    """
+    warning_html = ""
+    if gsc_warning:
+        warning_html = (
+            f'  <p class="data-freshness"><strong>GSC data warning:</strong> '
+            f'{escape(gsc_warning)}</p>\n'
+        )
+
+    used_rows = []
+    unused = []
+    for key, entry in data_sources.items():
+        if isinstance(entry, dict):
+            available = bool(entry.get("available"))
+            method = str(entry.get("method", "not-assessed"))
+        else:
+            available = bool(entry)
+            method = "api" if available else "not-assessed"
+
+        label, description, frequency = _DATA_SOURCE_LABELS.get(
+            key, (_humanize_source_key(key), "", "")
+        )
+        if available:
+            method_label = _METHOD_LABELS.get(method, method)
+            used_rows.append(
+                f'      <tr><td>{escape(label)}</td>\n'
+                f'          <td>{escape(description)}</td>\n'
+                f'          <td>{escape(method_label)}</td>\n'
+                f'          <td>{escape(frequency)}</td></tr>\n'
+            )
+        else:
+            unused.append(label)
+
+    if used_rows:
+        table_html = (
+            f'  <table>\n'
+            f'    <thead>\n'
+            f'      <tr><th>Source</th><th>Description</th><th>Method</th>'
+            f'<th>Update Frequency</th></tr>\n'
+            f'    </thead>\n'
+            f'    <tbody>\n'
+            f'{"".join(used_rows)}'
+            f'    </tbody>\n'
+            f'  </table>\n'
+        )
+    else:
+        table_html = (
+            '  <p style="text-align: left;">No external data sources were connected '
+            'for this audit. All findings are based on crawled and rendered page '
+            'data only.</p>\n'
+        )
+
+    unused_html = ""
+    if unused:
+        items = "".join(f'      <li>{escape(name)}</li>\n' for name in unused)
+        unused_html = (
+            f'  <h4 style="text-align: left;">Not Assessed</h4>\n'
+            f'  <p style="text-align: left;">These sources were unavailable for this '
+            f'audit. Findings that would depend on them are reported as '
+            f'&ldquo;Not Assessed&rdquo; and are never estimated or scored:</p>\n'
+            f'  <ul style="text-align: left;">\n{items}  </ul>\n'
+        )
+
+    return (
+        f'\n<!-- {"=" * 55} DATA SOURCES & METHODOLOGY {"=" * 3} -->\n'
+        f'<div class="section" style="text-align: center; padding-top: 15mm;">\n'
+        f'  <hr class="divider">\n'
+        f'  <h3 style="text-align: left;">Data Sources &amp; Methodology</h3>\n'
+        f'{table_html}'
+        f'{unused_html}'
+        f'{warning_html}'
+        f'  <p style="color: #94a3b8; font-size: 9pt; margin-top: 5mm;">\n'
+        f'    Report generated by Claude SEO &mdash; Google SEO Intelligence Skill &mdash; '
+        f'{timestamp}<br>\n'
+        f'    Methodology based on Google Web Vitals thresholds, Search Console documentation, '
+        f'and Lighthouse scoring algorithms.\n'
+        f'  </p>\n'
+        f'</div>\n'
+    )
+
+
 def _build_methodology_footer(domain, timestamp, gsc_warning=""):
     """Build the Data Sources & Methodology footer section."""
     warning_html = ""
@@ -2350,7 +2564,17 @@ def generate_report(report_type, data, domain, output_dir, output_format="pdf"):
             sections.append(action_html)
         else:
             sections.append(_build_recommendations(data, section_num=rec_num))
-        sections.append(_build_methodology_footer(domain, timestamp, _gsc_anomaly_warning(data.get("gsc", {}))))
+        # Audit envelopes carry a `data_sources` block recording what was actually
+        # available; render the methodology page from it rather than listing every
+        # Google API regardless of whether it was used.
+        data_sources = data.get("data_sources")
+        gsc_warning = _gsc_anomaly_warning(data.get("gsc", {}))
+        if isinstance(data_sources, dict) and data_sources:
+            sections.append(_build_data_sources_footer(
+                domain, timestamp, data_sources, gsc_warning,
+            ))
+        else:
+            sections.append(_build_methodology_footer(domain, timestamp, gsc_warning))
 
     # ── Assemble Final HTML ──────────────────────────────────────────────────
 
