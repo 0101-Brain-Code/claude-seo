@@ -62,12 +62,14 @@ against real query overlap." Then offer three options:
 (`skills/seo-google/references/auth-setup.md` for Google; `/seo backlinks setup` for
 Moz and Bing). Re-run the check afterwards. Record `method: api`.
 
-**(b) Use Chrome-assisted checking.** Only offer this when a browser with Chrome
-tools is actually available in this session. Follow
-`references/chrome-assisted-data.md` -- it specifies exactly which screen to read for
-each source, and it is **read-only**: never change a setting or submit a form on the
-user's behalf. Findings from this path carry `source: chrome-assisted` and
-`confidence: Medium` at most, and name the screen that was read. Record
+**(b) Use Chrome-assisted checking.** *Requires the `brainandcode-audit` extension*
+(`extensions/brainandcode-audit/`), which installs
+`references/chrome-assisted-data.md`. Only offer this option when that reference is
+present **and** a browser with Chrome tools is actually available in this session --
+otherwise skip straight to (c). The reference specifies exactly which screen to read
+for each source, and the tier is **read-only**: never change a setting or submit a
+form on the user's behalf. Findings from this path carry `source: chrome-assisted`
+and `confidence: Medium` at most, and name the screen that was read. Record
 `method: chrome-assisted`.
 
 **(c) Proceed without it.** The source is marked `not-assessed` throughout the

@@ -10,7 +10,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AUDIT_SKILL = REPO_ROOT / "skills" / "seo-audit" / "SKILL.md"
-CHROME_REF = REPO_ROOT / "skills" / "seo-audit" / "references" / "chrome-assisted-data.md"
+# The Chrome-assisted tier ships as the brainandcode-audit extension rather than
+# core, so core Phase 0 works without it (options (a) and (c)).
+EXT_ROOT = REPO_ROOT / "extensions" / "brainandcode-audit"
+CHROME_REF = EXT_ROOT / "skills" / "seo-audit" / "references" / "chrome-assisted-data.md"
 
 
 def _audit_text() -> str:
@@ -70,9 +73,42 @@ def test_phase_0_prompts_once_not_per_finding() -> None:
 
 # ─── Chrome-assisted reference ──────────────────────────────────────────────
 
-def test_chrome_assisted_reference_exists_and_is_linked_from_the_skill() -> None:
+def test_chrome_assisted_reference_ships_in_the_extension_not_core() -> None:
     assert CHROME_REF.is_file()
+    assert not (REPO_ROOT / "skills" / "seo-audit" / "references"
+                / "chrome-assisted-data.md").exists()
     assert "references/chrome-assisted-data.md" in _audit_text()
+
+
+def test_option_b_is_gated_on_the_extension_being_installed() -> None:
+    """Core Phase 0 must degrade to (a) and (c) when the extension is absent."""
+    section = _phase0_section()
+    assert "*Requires the `brainandcode-audit` extension*" in section
+    assert "otherwise skip straight to (c)" in section
+
+
+def test_extension_ships_installer_uninstaller_and_docs() -> None:
+    import stat  # noqa: PLC0415
+
+    for name in ("install.sh", "install.ps1", "uninstall.sh"):
+        assert (EXT_ROOT / name).is_file(), name
+    for name in ("install.sh", "uninstall.sh"):
+        mode = (EXT_ROOT / name).stat().st_mode
+        assert mode & stat.S_IXUSR, f"{name} must be executable"
+
+    docs = EXT_ROOT / "docs"
+    assert docs.is_dir()
+    assert any(p.suffix == ".md" for p in docs.iterdir())
+
+
+def test_extension_installer_targets_the_installed_skill_directory() -> None:
+    """The extension mirrors its reference into the plugin's own skill dir."""
+    text = (EXT_ROOT / "install.sh").read_text(encoding="utf-8")
+    assert "${SKILL_DIR}/seo-audit/references" in text
+    assert "chrome-assisted-data.md" in text
+
+    uninstall = (EXT_ROOT / "uninstall.sh").read_text(encoding="utf-8")
+    assert "chrome-assisted-data.md" in uninstall
 
 
 def test_chrome_assisted_is_read_only_with_the_rank_math_example() -> None:
