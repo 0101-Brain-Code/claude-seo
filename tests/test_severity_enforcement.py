@@ -171,3 +171,36 @@ def test_source_score_consistency_runs_without_a_scoring_factors_block() -> None
 
     assert result["status"] == "FAIL"
     assert "source_score_consistency" in result["metadata"]["checks_run"]
+
+
+# ─── Repo-wide: no competing instruction to score unmeasured data ───────────
+
+FREE_SOURCES_REF = REPO_ROOT / "skills" / "seo" / "references" / "free-backlink-sources.md"
+
+
+def test_shared_reference_does_not_contradict_the_no_score_rule() -> None:
+    """The reference used to say 'cap the maximum health score at 70/100'.
+
+    That instructed a number in exactly the Common-Crawl-only case the skill
+    forbids, and gave the more actionable of the two competing instructions --
+    the likely reason the rule was violated despite being written down.
+    """
+    text = FREE_SOURCES_REF.read_text(encoding="utf-8")
+    assert "cap the maximum health score" not in text
+    assert "70/100" not in text
+    assert "do not produce a health score at all" in text
+    assert "Not Assessed" in text
+
+
+def test_no_skill_or_reference_instructs_capping_a_score_for_missing_data() -> None:
+    """Guard the whole class, not just the one line that was found."""
+    pattern = re.compile(
+        r"cap\s+(?:the\s+)?(?:maximum\s+)?[a-z ]*score\s+(?:at|to)\s+\d+",
+        re.I,
+    )
+    offenders = []
+    for root in (REPO_ROOT / "skills", REPO_ROOT / "agents"):
+        for path in root.rglob("*.md"):
+            if pattern.search(path.read_text(encoding="utf-8")):
+                offenders.append(str(path.relative_to(REPO_ROOT)))
+    assert not offenders, f"score-capping instruction reintroduced in: {offenders}"
