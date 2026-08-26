@@ -253,3 +253,103 @@ def test_full_audit_without_data_sources_block_keeps_static_methodology(tmp_path
     html = Path(result["files"][0]).read_text(encoding="utf-8")
     assert "Data Sources &amp; Methodology" in html
     assert "Chrome UX Report (CrUX)" in html
+
+
+def test_exec_summary_header_says_critical_when_a_critical_finding_is_listed(
+    tmp_path: Path,
+) -> None:
+    """A real Critical finding keeps the original 'Critical Issues Found:' label."""
+    data = {
+        "summary": {
+            "health_score": 42,
+            "top_findings": [
+                {"title": "Canonical points at staging", "severity": "Critical"},
+                {"title": "Meta description templated", "severity": "High"},
+            ],
+        },
+    }
+
+    result = google_report.generate_report(
+        "full", data, "example.com", tmp_path, output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+
+    assert "Critical Issues Found:" in html
+    assert "High-Priority Issues Found:" not in html
+
+
+def test_exec_summary_header_avoids_critical_when_highest_severity_is_high(
+    tmp_path: Path,
+) -> None:
+    """The rfidhotel.com case: all-High findings must not be labelled Critical."""
+    data = {
+        "summary": {
+            "health_score": 68,
+            "top_findings": [
+                {"title": "Meta description templated", "severity": "High"},
+                {"title": "product_brand taxonomy empty", "severity": "High"},
+                {"title": "Thin category copy", "severity": "Medium"},
+            ],
+        },
+    }
+
+    result = google_report.generate_report(
+        "full", data, "example.com", tmp_path, output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+
+    assert "Critical Issues Found:" not in html
+    assert "High-Priority Issues Found:" in html
+
+
+def test_exec_summary_header_ignores_critical_findings_truncated_out_of_view(
+    tmp_path: Path,
+) -> None:
+    """The box renders only five entries; the label describes what is shown.
+
+    A Critical finding sitting past the truncation point must not produce a
+    'Critical' header above a list that never displays it.
+    """
+    findings = [
+        {"title": f"High issue {n}", "severity": "High"} for n in range(5)
+    ]
+    findings.append({"title": "Hidden critical", "severity": "Critical"})
+    data = {"summary": {"health_score": 55, "top_findings": findings}}
+
+    result = google_report.generate_report(
+        "full", data, "example.com", tmp_path, output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+
+    assert "Hidden critical" not in html
+    assert "Critical Issues Found:" not in html
+    assert "High-Priority Issues Found:" in html
+
+
+def test_exec_summary_header_is_neutral_when_no_entry_carries_a_severity(
+    tmp_path: Path,
+) -> None:
+    """Lighthouse/indexation entries have no severity and must not imply one."""
+    data = {
+        "summary": {"health_score": 77},
+        "inspection": {"summary": {"fail": 3}},
+    }
+
+    result = google_report.generate_report(
+        "full", data, "example.com", tmp_path, output_format="html",
+    )
+
+    assert result["error"] is None
+    html = Path(result["files"][0]).read_text(encoding="utf-8")
+
+    # The entry is rendered, so the assertions below are not vacuous.
+    assert "3 URL(s)</strong> not indexed" in html
+    assert "Critical Issues Found:" not in html
+    assert "High-Priority Issues Found:" not in html
+    assert "Issues Found:" in html

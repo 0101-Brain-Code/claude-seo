@@ -1136,6 +1136,42 @@ def _severity_css_class(severity):
     return _SEVERITY_CSS.get(str(severity).strip().lower(), "status-warn")
 
 
+_SEVERITY_RANK = {
+    "critical": 5,
+    "high": 4,
+    "medium": 3,
+    "low": 2,
+    "info": 1,
+}
+
+_ISSUE_BOX_LABELS = {
+    5: "Critical Issues Found:",
+    4: "High-Priority Issues Found:",
+    3: "Medium-Priority Issues Found:",
+    2: "Low-Priority Issues Found:",
+    1: "Issues Found:",
+}
+
+
+def _issues_box_label(severities):
+    """Label the executive-summary issues box after the worst severity on display.
+
+    The box mixes severity-carrying findings with entries that have none (failed
+    Lighthouse audits, non-indexed URL counts) and is truncated before rendering,
+    so the label is derived from what the reader can actually see rather than from
+    every finding collected. Falls back to a neutral label when nothing in view
+    carries a severity.
+    """
+    ranks = [
+        _SEVERITY_RANK[name]
+        for name in (str(s).strip().lower() for s in severities if s)
+        if name in _SEVERITY_RANK
+    ]
+    if not ranks:
+        return "Issues Found:"
+    return _ISSUE_BOX_LABELS[max(ranks)]
+
+
 def _finding_field(item, key):
     """Return a stripped string field from a finding dict, or '' when absent."""
     if isinstance(item, dict) and item.get(key) is not None:
@@ -1356,28 +1392,31 @@ def _build_executive_summary(domain, timestamp, data, report_type):
     for item in _coerce_items(summary.get("top_findings")):
         severity = _finding_severity(item)
         title = _finding_title(item)
-        issues.append(f'<strong>{escape(severity)}:</strong> {escape(title)}')
+        issues.append(
+            (severity, f'<strong>{escape(severity)}:</strong> {escape(title)}')
+        )
 
     failed_audits = mobile.get("failed_audits", [])
     if failed_audits:
         top_fail = sorted(failed_audits, key=lambda a: a.get("score", 1))[:3]
         for a in top_fail:
-            issues.append(f'<strong>{a.get("title", "Unknown")}</strong> '
-                          f'(score: {a.get("score", 0):.0%})')
+            issues.append((None, f'<strong>{a.get("title", "Unknown")}</strong> '
+                                 f'(score: {a.get("score", 0):.0%})'))
 
     seo_audits = mobile.get("seo_audits", [])
     seo_failed = [a for a in seo_audits if not a.get("pass")]
     for a in seo_failed[:2]:
-        issues.append(f'<strong>SEO:</strong> {a.get("title", "Unknown")}')
+        issues.append((None, f'<strong>SEO:</strong> {a.get("title", "Unknown")}'))
 
     inspect_fails = inspection.get("summary", {}).get("fail", 0)
     if inspect_fails:
-        issues.append(f'<strong>{inspect_fails} URL(s)</strong> not indexed')
+        issues.append((None, f'<strong>{inspect_fails} URL(s)</strong> not indexed'))
 
     if issues:
-        issue_items = "\n".join(f"      <li>{i}</li>" for i in issues[:5])
+        shown = issues[:5]
+        issue_items = "\n".join(f"      <li>{html}</li>" for _, html in shown)
         lines.append('  <div class="critical-box">')
-        lines.append('    <strong>Critical Issues Found:</strong>')
+        lines.append(f'    <strong>{_issues_box_label(sev for sev, _ in shown)}</strong>')
         lines.append('    <ol>')
         lines.append(issue_items)
         lines.append('    </ol>')
