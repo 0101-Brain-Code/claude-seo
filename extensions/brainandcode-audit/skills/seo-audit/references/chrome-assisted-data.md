@@ -35,9 +35,20 @@ Two further limits:
 Every finding sourced this way is written with:
 
 - `source: chrome-assisted`
-- `confidence: Medium` **at most** -- never `High`. It is a spot-check, not a full
-  structured pull. Drop to `Low` when the reading is partial, ambiguous, or covers a
-  shorter period than intended.
+- `confidence` set by **what kind of reading it was**, not by the fact that a browser
+  was used. Two tiers:
+  - **Verbatim configuration reads may be `High`.** An exact stored value read
+    straight off a settings screen -- a field's contents, a toggle state, a term
+    count -- involves no sampling and no interpretation (e.g. "AIOSEO Products ->
+    Meta Description = `#post_excerpt`", "`product_brand` taxonomy has 0 terms").
+    The setting either says that or it does not, and a human reading the same screen
+    sees the same thing.
+  - **Dashboard and metric spot-checks stay `Medium` at most** -- never `High`.
+    Traffic totals, click and impression counts, anything read off a chart or a
+    summary view is a partial sample standing in for a full export, and the figure
+    shown depends on the date range and filters in effect.
+  - Drop to `Low` from either tier when the reading is partial, ambiguous, or covers
+    a shorter period than intended.
 - the **specific screen or report read** named in the finding's `description`
   (e.g. "read from GSC Performance report, last 28 days, Search type: Web"), so a
   human can reproduce the reading.

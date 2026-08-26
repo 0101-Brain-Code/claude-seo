@@ -69,7 +69,9 @@ present **and** a browser with Chrome tools is actually available in this sessio
 otherwise skip straight to (c). The reference specifies exactly which screen to read
 for each source, and the tier is **read-only**: never change a setting or submit a
 form on the user's behalf. Findings from this path carry `source: chrome-assisted`
-and `confidence: Medium` at most, and name the screen that was read. Record
+and name the screen that was read. Confidence depends on the kind of reading: a
+verbatim configuration value may be `High`, while a dashboard or metric spot-check
+stays `Medium` at most -- the reference draws the line. Record
 `method: chrome-assisted`.
 
 **(c) Proceed without it.** The source is marked `not-assessed` throughout the
@@ -164,7 +166,7 @@ Write `{domain}-audit/audit-data.json` with this shape so `claude-seo run google
 - **`business_impact`** -- what happens if this is never fixed, independent of SEO severity. This is what lets "zero security headers" be `severity: Low` (it barely touches rankings) while `business_impact: Critical` (it is still a real security gap worth fixing). Severity and business impact are allowed to diverge; **do not collapse them back into one number**. Use `N/A` when the finding is purely an SEO concern with no separate business consequence.
 - **`source`** -- where this finding's evidence came from:
   - `api` -- a structured pull from a credentialed API (GSC, GA4, CrUX, PageSpeed, Moz, Bing).
-  - `chrome-assisted` -- read from a UI in the browser rather than from an API. Never `confidence: High`.
+  - `chrome-assisted` -- read from a UI in the browser rather than from an API. `confidence: High` only for verbatim configuration reads; dashboard and metric spot-checks cap at `Medium`.
   - `lab-estimate` -- synthetic/lab measurement standing in for field data.
   - `not-assessed` -- the data source was unavailable and the check was not performed. **A `not-assessed` finding must never carry a numeric score.** Report "Not Assessed", never an estimate.
 

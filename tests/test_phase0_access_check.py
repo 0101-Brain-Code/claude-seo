@@ -120,10 +120,32 @@ def test_chrome_assisted_is_read_only_with_the_rank_math_example() -> None:
     assert "report it as a recommendation for a human to\napply" in text
 
 
-def test_chrome_assisted_caps_confidence_below_high() -> None:
+def test_chrome_assisted_confidence_is_tiered_by_kind_of_reading() -> None:
+    """Confidence follows what was read, not merely that a browser was used.
+
+    A verbatim settings value is not evidence of the same strength as a number
+    eyeballed off a dashboard, and the old blanket Medium cap conflated them.
+    """
     text = CHROME_REF.read_text(encoding="utf-8")
     assert "`source: chrome-assisted`" in text
-    assert "`confidence: Medium` **at most** -- never `High`" in text
+
+    # Verbatim configuration reads are allowed to reach High.
+    assert "**Verbatim configuration reads may be `High`.**" in text
+
+    # Metric spot-checks are still capped.
+    assert "**Dashboard and metric spot-checks stay `Medium` at most**" in text
+    assert "never `High`" in text
+
+    # The old blanket rule must not survive anywhere in the reference.
+    assert "`confidence: Medium` **at most** -- never `High`" not in text
+
+
+def test_phase0_and_reference_agree_on_the_confidence_rule() -> None:
+    """SKILL.md must not restate the superseded blanket-Medium cap."""
+    skill = AUDIT_SKILL.read_text(encoding="utf-8")
+    assert "Never `confidence: High`" not in skill
+    assert "`confidence: Medium` at most, and name the screen" not in skill
+    assert "verbatim configuration" in skill.lower()
 
 
 def test_chrome_assisted_requires_naming_the_screen_read() -> None:
